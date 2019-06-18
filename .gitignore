@@ -1,0 +1,11 @@
+.Rproj.user
+.Rproj.user/*
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj*
+.httr-oauth
+cache/
+
+data/
+global_LandR_reforestation.R
