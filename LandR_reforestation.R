@@ -5,9 +5,9 @@
 # in R packages. If exact location is required, functions will be: sim$<moduleName>$FunctionName
 defineModule(sim, list(
   name = "LandR_reforestation",
-  description = NA, #"insert module description here",
-  keywords = NA, # c("insert key words here"),
-  authors = person("First", "Last", email = "first.last@example.com", role = c("aut", "cre")),
+  description = "LandR-ecosystem module for simulating regeneration following harvest",
+  keywords = c("harvest", "reforestation", "assisted migration"),
+  authors = person("Ian", "Eddy", email = "ieddy@canada.ca", role = c("aut", "cre")),
   childModules = character(0),
   version = list(SpaDES.core = "0.2.5.9005", LandR_reforestation = "0.0.1"),
   spatialExtent = raster::extent(rep(NA_real_, 4)),
@@ -15,22 +15,28 @@ defineModule(sim, list(
   timeunit = "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "LandR_reforestation.Rmd"),
-  reqdPkgs = list(),
+  reqdPkgs = list("raster", "PredictiveEcology/LandR@development"),
   parameters = rbind(
     #defineParameter("paramName", "paramClass", value, min, max, "parameter description"),
     defineParameter(".plotInitialTime", "numeric", NA, NA, NA, "This describes the simulation time at which the first plot event should occur"),
     defineParameter(".plotInterval", "numeric", NA, NA, NA, "This describes the simulation time interval between plot events"),
     defineParameter(".saveInitialTime", "numeric", NA, NA, NA, "This describes the simulation time at which the first save event should occur"),
     defineParameter(".saveInterval", "numeric", NA, NA, NA, "This describes the simulation time interval between save events"),
-    defineParameter(".useCache", "logical", FALSE, NA, NA, "Should this entire module be run with caching activated? This is generally intended for data-type modules, where stochasticity and time are not relevant")
+    defineParameter(".useCache", "logical", FALSE, NA, NA, "Should this entire module be run with caching activated? This is generally intended for data-type modules, where stochasticity and time are not relevant"),
+    defineParameter("harvestInitialTime", "numeric", start(sim), NA, NA, "Time of first harvest"),
+    defineParameter("reforestInitialTime", "numeric", start(sim), NA, NA, "Time of first reforest"),
+    defineParameter("harvestInterval", "numeric", 1, NA, NA, "Time between harvest events"),
+    defineParameter("reforestInterval", "numeric", 1, NA, NA, "Time between reforest events")
   ),
   inputObjects = bind_rows(
     #expectsInput("objectName", "objectClass", "input object description", sourceURL, ...),
-    expectsInput(objectName = NA, objectClass = NA, desc = NA, sourceURL = NA)
+    expectsInput(objectName = 'rstCurrentHarvest', objectClass = "RasterLayer", desc = "Binary raster layer with locations of harvest (represented as 1)", sourceURL = NA),
+    expectsInput(objectName = 'pixelGroupMap', objectClass = "RasterLayer", desc = "Location of pixel groups"),
+    expectsInput(objectName = "cohortData", objectClass = "data.table", desc = "table with attributes of cohorts that are harvested")
   ),
   outputObjects = bind_rows(
     #createsOutput("objectName", "objectClass", "output object description", ...),
-    createsOutput(objectName = NA, objectClass = NA, desc = NA)
+    createsOutput(objectName = 'harvestedBiomass', objectClass = "RasterLayer", desc = "raster with harvested biomass from cohortData")
   )
 ))
 
@@ -48,60 +54,36 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
       sim <- Init(sim)
 
       # schedule future event(s)
+      sim <- scheduleEvent(sim, P(sim)$harvestInitialTime, "LandR_reforestation", "harvest")
+      sim <- scheduleEvent(sim, P(sim)$reforestInitialTime, "LandR_reforestation", "reforest")
       sim <- scheduleEvent(sim, P(sim)$.plotInitialTime, "LandR_reforestation", "plot")
       sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, "LandR_reforestation", "save")
     },
     plot = {
       # ! ----- EDIT BELOW ----- ! #
-      # do stuff for this event
-
-      #plotFun(sim) # uncomment this, replace with object to plot
-      # schedule future event(s)
-
-      # e.g.,
-      #sim <- scheduleEvent(sim, time(sim) + P(sim)$.plotInterval, "LandR_reforestation", "plot")
-
-      # ! ----- STOP EDITING ----- ! #
+      Plot(sim$harvestedBiomass, new = TRUE, title = "Harvested Biomass")
+      sim <- scheduleEvent(sim, time(sim) + P(sim)$.plotInterval, "LandR_reforestation", "plot")
     },
     save = {
-      # ! ----- EDIT BELOW ----- ! #
-      # do stuff for this event
+      Save(sim)
+      scheduleEvent(sim, time(sim) + P(sim)$.saveInterval, "LandR_reforestation", "save")
+    },
 
-      # e.g., call your custom functions/methods here
-      # you can define your own methods below this `doEvent` function
+    harvest = {
+      #I want to prevent harvest from occuring if rstCurrentHarvest is unchanged
+      #This will schedule it only if rstCurrentHarvest is from this year... I think
+      if (!LandR::scheduleDisturbance(sim$rstCurrentHarvest, time(sim)))
+      sim <- harvestBiomass(sim)
 
-      # schedule future event(s)
-
-      # e.g.,
-      # sim <- scheduleEvent(sim, time(sim) + P(sim)$.saveInterval, "LandR_reforestation", "save")
+      # REVIEW HARVEST PRIORITY
+      sim <- scheduleEvent(sim, time(sim) + P(sim)$harvestInterval, "LandR_reforestation", "harvest", priority = 4)
 
       # ! ----- STOP EDITING ----- ! #
     },
-    event1 = {
-      # ! ----- EDIT BELOW ----- ! #
-      # do stuff for this event
+    reforest = {
 
-      # e.g., call your custom functions/methods here
-      # you can define your own methods below this `doEvent` function
-
-      # schedule future event(s)
-
-      # e.g.,
-      # sim <- scheduleEvent(sim, time(sim) + increment, "LandR_reforestation", "templateEvent")
-
-      # ! ----- STOP EDITING ----- ! #
-    },
-    event2 = {
-      # ! ----- EDIT BELOW ----- ! #
-      # do stuff for this event
-
-      # e.g., call your custom functions/methods here
-      # you can define your own methods below this `doEvent` function
-
-      # schedule future event(s)
-
-      # e.g.,
-      # sim <- scheduleEvent(sim, time(sim) + increment, "LandR_reforestation", "templateEvent")
+      sim <- plantNewCohorts(sim)
+      sim <- scheduleEvent(sim, time(sim) + P(sim)$reforestInterval, "LandR_reforestation", "reforest")
 
       # ! ----- STOP EDITING ----- ! #
     },
@@ -116,39 +98,24 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
 
 ### template initialization
 Init <- function(sim) {
-  # # ! ----- EDIT BELOW ----- ! #
 
-  # ! ----- STOP EDITING ----- ! #
 
   return(invisible(sim))
 }
 
 ### template for save events
 Save <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # do stuff for this event
   sim <- saveFiles(sim)
-
-  # ! ----- STOP EDITING ----- ! #
   return(invisible(sim))
 }
 
-### template for plot events
-plotFun <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # do stuff for this event
-  #Plot(sim$object)
-
-  # ! ----- STOP EDITING ----- ! #
-  return(invisible(sim))
-}
 
 ### template for your event1
-Event1 <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # THE NEXT TWO LINES ARE FOR DUMMY UNIT TESTS; CHANGE OR DELETE THEM.
-  # sim$event1Test1 <- " this is test for event 1. " # for dummy unit test
-  # sim$event1Test2 <- 999 # for dummy unit test
+harvestBiomass <- function(sim) {
+  #Calculate sum of B at harvest locations
+  cohortDataLong <- LandR::addPixels2CohortData(cohortData = sim$cohortData,
+                                                pixelGroupMap = sim$pixelGroupMap)
+
 
 
   # ! ----- STOP EDITING ----- ! #
@@ -156,7 +123,7 @@ Event1 <- function(sim) {
 }
 
 ### template for your event2
-Event2 <- function(sim) {
+plantNewCohorts <- function(sim) {
   # ! ----- EDIT BELOW ----- ! #
   # THE NEXT TWO LINES ARE FOR DUMMY UNIT TESTS; CHANGE OR DELETE THEM.
   # sim$event2Test1 <- " this is test for event 2. " # for dummy unit test
@@ -168,27 +135,24 @@ Event2 <- function(sim) {
 }
 
 .inputObjects <- function(sim) {
-  # Any code written here will be run during the simInit for the purpose of creating
-  # any objects required by this module and identified in the inputObjects element of defineModule.
-  # This is useful if there is something required before simulation to produce the module
-  # object dependencies, including such things as downloading default datasets, e.g.,
-  # downloadData("LCC2005", modulePath(sim)).
-  # Nothing should be created here that does not create a named object in inputObjects.
-  # Any other initiation procedures should be put in "init" eventType of the doEvent function.
-  # Note: the module developer can check if an object is 'suppliedElsewhere' to
-  # selectively skip unnecessary steps because the user has provided those inputObjects in the
-  # simInit call, or another module will supply or has supplied it. e.g.,
-  # if (!suppliedElsewhere('defaultColor', sim)) {
-  #   sim$map <- Cache(prepInputs, extractURL('map')) # download, extract, load file from url in sourceURL
-  # }
 
   #cacheTags <- c(currentModule(sim), "function:.inputObjects") ## uncomment this if Cache is being used
   dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
   message(currentModule(sim), ": using dataPath '", dPath, "'.")
 
-  # ! ----- EDIT BELOW ----- ! #
+  if (!suppliedElsewhere("pixelGroupMap", sim)) {
+    message("You should probably run LandR_BorealLBMRDataPrep")
+    sim$pixelGroupMap <- raster(extent(-5,5,-5,5), res = c(1,1))
+    sim$pixelGroupMap[] <- 1:100
+  }
 
-  # ! ----- STOP EDITING ----- ! #
+  if (!suppliedElsewhere("cohortData", sim)) {
+    #Figure out what cohort data looks like
+    sim$cohortData <- data.table("pixelGroup" = 1:100,
+                                 "biomass" = runif(100, 1,100),
+                                 "maxB" = 100,
+                                 "aNPP" = 3)
+  }
   return(invisible(sim))
 }
 ### add additional events as needed by copy/pasting from above
