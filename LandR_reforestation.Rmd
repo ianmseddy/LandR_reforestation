@@ -26,7 +26,7 @@ library(SpaDES)
 setPaths(modulePath = file.path("C:/Ian/Git"))
 getPaths() # shows where the 4 relevant paths are
 
-times <- list(start = 0, end = 10)
+times <- list(start = 1, end = 10)
 
 parameters <- list(
   #.progress = list(type = "text", interval = 1), # for a progress bar
