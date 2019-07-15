@@ -48,7 +48,7 @@ defineModule(sim, list(
     expectsInput(objectName = "cohortData", objectClass = "data.table",
                  desc = "table with attributes of cohorts that are harvested"),
     expectsInput(objectName = "speciesEcoregion", objectClass = "data.table",
-                 desc = ""),
+                 desc = "data table with maxB and maxANPP estimates for each ecodistrict-lcc-species combination"),
     expectsInput(objectName = "provenanceTable", objectClass = "data.table",
                  desc = "Data table with 3 columns. Location is reforestation location (as ecoregion),
                  Provenance is the provenance to be planted (as ecoregion),
@@ -125,17 +125,16 @@ Save <- function(sim) {
 
 ### template for your event2
 plantNewCohorts <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  #Get sum of B at harvest locations at store as raster
+
   cohortData <- sim$cohortData
   pixelGroupMap <- sim$pixelGroupMap
+  
   #These next three lines should use the LandR function but it can't handle two cohorts in 1 pixelGroup??
   pixelGroupTable <- na.omit(data.table(pixelGroup = getValues(pixelGroupMap),
                                         pixelIndex = 1:ncell(pixelGroupMap),
                                         harvested = getValues(sim$rstCurrentHarvest)))
   #Need to check what happens if we have NA
   cohortDataLong <- cohortData[pixelGroupTable, on = "pixelGroup", allow.cartesian = TRUE]
-
 
   if (P(sim)$harvestBiomass) {
     #Remove biomass from cohortData
@@ -145,6 +144,7 @@ plantNewCohorts <- function(sim) {
                                               0)
 
     #check this is actually working. CohortData object needs to be updated
+    #Get sum of B at harvest locations at store as raster
     if (!is.null(P(sim)$selectiveHarvest)) {
       cohortDataLong$harvestedBiomass[!cohortDataLong$speciesCode %in% P(sim)$selectiveHarvest] <- 0
       cohortDataLong$harvestedBiomass <- cohortDataLong[, .(totalB = sum(totalB))]
@@ -159,6 +159,7 @@ plantNewCohorts <- function(sim) {
     cohortDataLong[, B := B - harvestedBiomass]
     cohortDataLong[, totalB := sum(.SD$B), by = .(pixelIndex)]
   }
+  
   #Track harvested cohorts - this approach is borrowed from LandR Biomass_regeneration
   harvestedLoci <- which(getValues(sim$rstCurrentHarvest) > 0)
   treedHarvestedLoci <- if (length(sim$inactivePixelIndex) > 0) {
@@ -187,8 +188,9 @@ plantNewCohorts <- function(sim) {
   set(harvestPixelCohortData, NULL, c("mortality", "aNPPAct", "harvested", "harvestedBiomass", 'speciesProportion'), NULL)
   set(harvestPixelCohortData, NULL, c("totalB", "age"), NA)
 
-  #NEXT YOU NEED TO REVIEW THE LANDR FUNCTION AND DO MOST OF IT HERE
-  #How does newCohortData get new pixelGroups?
+  set(harvestPixelCohortData, NULL, c("mortality", "aNPPAct", "harvested", "harvestedBiomass", "totalB"), NULL)
+  #use proportion field to determine what gets planted where
+
   outs <- updateCohortData(newPixelCohortData = harvestPixelCohortData,
                            cohortData = sim$cohortData,
                            pixelGroupMap = sim$pixelGroupMap,
