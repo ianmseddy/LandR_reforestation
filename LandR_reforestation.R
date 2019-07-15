@@ -184,13 +184,8 @@ plantNewCohorts <- function(sim) {
                                                    on = c("pixelIndex", 'pixelGroup')]
   #Review lines 166 to 178 when you better understand the purpose of treedHarvestPixelTableSinceLastDisp
   browser()
-  #Join with species table to get traits like max b
-  #There is actually no reason to join this table right now because you won't need these maxB estimates
-  harvestPixelCohortData <- harvestPixelCohortData[sim$speciesEcoregion,
-                                                   on = c("speciesCode", "ecoregionGroup"),
-                                                   nomatch = 0]
-  set(harvestPixelCohortData, NULL, c("mortality", "aNPPAct", "harvested", "harvestedBiomass"), NULL)
-  set(harvestPixelCohortData, NULL, c("speciesProportion", "totalB"), NA)
+  set(harvestPixelCohortData, NULL, c("mortality", "aNPPAct", "harvested", "harvestedBiomass", 'speciesProportion'), NULL)
+  set(harvestPixelCohortData, NULL, c("totalB", "age"), NA)
 
   #NEXT YOU NEED TO REVIEW THE LANDR FUNCTION AND DO MOST OF IT HERE
   #How does newCohortData get new pixelGroups?
@@ -201,16 +196,9 @@ plantNewCohorts <- function(sim) {
                            speciesEcoregion = sim$speciesEcoregion,
                            treedFirePixelTableSinceLastDisp = treedHarvestPixelTableSinceLastDisp,
                            provenanceTable = sim$provenanceTable,
-                           successionTimeStep = P(sim)$successionTimeStep)
-  #You hardcoded successionTimeStep fix this
+                           successionTimestep = P(sim)$successionTimeStep)
 
-    #You can't use this function so you'll have to break apart the wrapper, and create .PlantNewCohort as alternative to
-    #.initiateNewCohort
-    # newCohorts <- updateCohortData(newPixelCohortData = harvestPixelCohortData,
-    #                                cohortData = cohortData,
-    #                                pixelGroupMap = sim$pixelGroupMap,
-    #                                time = round(tim(sim)),
-    #                                speciesEcoregion = sim$speciesEcoregion)
+  browser()
 
   # ! ----- STOP EDITING ----- ! #
   return(invisible(sim))
@@ -241,7 +229,7 @@ plantNewCohorts <- function(sim) {
                                  'speciesProportion' = 1
                                  )
     #Add second cohort to a pixelGroup so it is a little more realistic for now
-    twoCohort <- data.table("Abies_las", 1, 1, 20, sim$cohortData$B[1], sim$cohortData$B[1]*2, 0, 1, 0.5)
+    twoCohort <- data.table("Abie_las", 1, 1, 20, sim$cohortData$B[1], sim$cohortData$B[1]*2, 0, 1, 0.5)
     names(twoCohort) <- names(sim$cohortData)
     sim$cohortData[1,]$totalB <- sim$cohortData[1,]$totalB * 2
     sim$cohortData[1,]$speciesProportion <- 0.5
@@ -264,7 +252,7 @@ plantNewCohorts <- function(sim) {
   if (!suppliedElsewhere('speciesEcoregion', sim)) {
     sim$speciesEcoregion <- data.table(ecoregionGroup = rep(x = 1:2, each = 5),
                                        speciesCode = rep(x = c("Pice_gla", "Pice_mar", "Popu_tre", "Pinu_con", "Abie_las"),
-                                                         each = 2),
+                                                         times = 2, ),
                                        establishprob = 0.5,
                                        maxB = runif(10, 5000, 10000),
                                        year = 0)
