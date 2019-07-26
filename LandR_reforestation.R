@@ -93,12 +93,14 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
     },
 
     reforest = {
+
+      #planting new cohorts only scheduled if there is a non-null disturbance layer with current year
       if (!LandR::scheduleDisturbance(sim$rstCurrentHarvest, time(sim))) {
         sim <- plantNewCohorts(sim)
       }
+
       sim <- scheduleEvent(sim, time(sim) + P(sim)$reforestInterval, "LandR_reforestation", "reforest")
 
-      # ! ----- STOP EDITING ----- ! #
     },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
@@ -128,7 +130,7 @@ plantNewCohorts <- function(sim) {
 
   cohortData <- sim$cohortData
   pixelGroupMap <- sim$pixelGroupMap
-  
+
   #These next three lines should use the LandR function but it can't handle two cohorts in 1 pixelGroup??
   pixelGroupTable <- na.omit(data.table(pixelGroup = getValues(pixelGroupMap),
                                         pixelIndex = 1:ncell(pixelGroupMap),
@@ -142,24 +144,25 @@ plantNewCohorts <- function(sim) {
     cohortDataLong$harvestedBiomass <- ifelse(cohortDataLong$harvested == 1,
                                               cohortDataLong$B,
                                               0)
-
-    #check this is actually working. CohortData object needs to be updated
     #Get sum of B at harvest locations at store as raster
     if (!is.null(P(sim)$selectiveHarvest)) {
       cohortDataLong$harvestedBiomass[!cohortDataLong$speciesCode %in% P(sim)$selectiveHarvest] <- 0
+      #check this is actually working. CohortData object needs to be updated
       cohortDataLong$harvestedBiomass <- cohortDataLong[, .(totalB = sum(totalB))]
     }
     sim$harvestedBiomass <- sim$rstCurrentHarvest
 
     #Account for multiple cohorts harvested in one pixel
     pixelBiomass <- cohortDataLong[, .(harvestedBiomass = sum(harvestedBiomass)), by = "pixelIndex"]
-    sim$harvestedBiomass[!is.na(sim$rstCurrentHarvest)] <- pixelBiomass$harvestedBiomass
+
+    sim$harvestedBiomass[pixelBiomass$pixelIndex] <- pixelBiomass$harvestedBiomass
     rm(pixelBiomass)
     #Update cohortData - need to distinguish
     cohortDataLong[, B := B - harvestedBiomass]
+    #This is triggering an error. B is an integer in LBMR try class(cohortDataLong$totalB) <- "numeric"
     cohortDataLong[, totalB := sum(.SD$B), by = .(pixelIndex)]
   }
-  
+
   #Track harvested cohorts - this approach is borrowed from LandR Biomass_regeneration
   harvestedLoci <- which(getValues(sim$rstCurrentHarvest) > 0)
   treedHarvestedLoci <- if (length(sim$inactivePixelIndex) > 0) {
@@ -169,8 +172,8 @@ plantNewCohorts <- function(sim) {
     harvestedLoci
   }
 
-  treedHarvestPixelTableSinceLastDisp <- data.table(pixelIndex = as.integer(harvestedLoci),
-                                                    pixelGroup = as.integer(getValues(sim$pixelGroupMap)[harvestedLoci]),
+  treedHarvestPixelTableSinceLastDisp <- data.table(pixelIndex = as.integer(treedHarvestedLoci),
+                                                    pixelGroup = as.integer(getValues(sim$pixelGroupMap)[treedHarvestedLoci]),
                                                     harvestTime = time(sim))
 
   sim$treedHarvestPixelTableSinceLastDisp[, pixelGroup := as.integer(getValues(sim$pixelGroupMap))[pixelIndex]]
@@ -184,11 +187,8 @@ plantNewCohorts <- function(sim) {
   harvestPixelCohortData <- harvestPixelCohortData[treedHarvestPixelTableSinceLastDisp,
                                                    on = c("pixelIndex", 'pixelGroup')]
   #Review lines 166 to 178 when you better understand the purpose of treedHarvestPixelTableSinceLastDisp
-  browser()
-  set(harvestPixelCohortData, NULL, c("mortality", "aNPPAct", "harvested", "harvestedBiomass", 'speciesProportion'), NULL)
-  set(harvestPixelCohortData, NULL, c("totalB", "age"), NA)
+  set(harvestPixelCohortData, NULL, c("harvested", "harvestedBiomass", 'totalB', 'age'), NULL)
 
-  set(harvestPixelCohortData, NULL, c("mortality", "aNPPAct", "harvested", "harvestedBiomass", "totalB"), NULL)
   #use proportion field to determine what gets planted where
 
   outs <- updateCohortData(newPixelCohortData = harvestPixelCohortData,
@@ -199,8 +199,6 @@ plantNewCohorts <- function(sim) {
                            treedFirePixelTableSinceLastDisp = treedHarvestPixelTableSinceLastDisp,
                            provenanceTable = sim$provenanceTable,
                            successionTimestep = P(sim)$successionTimeStep)
-
-  browser()
 
   # ! ----- STOP EDITING ----- ! #
   return(invisible(sim))
