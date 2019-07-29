@@ -250,7 +250,7 @@ plantNewCohorts <- function(sim) {
   }
 
   if (!suppliedElsewhere('speciesEcoregion', sim)) {
-    sim$speciesEcoregion <- data.table(ecoregionGroup = rep(x = 1:2, each = 5),
+    sim$speciesEcoregion <- data.table(factor(ecoregionGroup = rep(x = 1:2, each = 5)),
                                        speciesCode = rep(x = c("Pice_gla", "Pice_mar", "Popu_tre", "Pinu_con", "Abie_las"),
                                                          times = 2, ),
                                        establishprob = 0.5,
@@ -260,8 +260,8 @@ plantNewCohorts <- function(sim) {
   }
 
   if (!suppliedElsewhere("provenanceTable", sim)) {
-    sim$provenanceTable <- data.table("Location" = rep(c(1,2), each = 5),
-                                      "Provenance" = rep(c(2,1), each = 5),
+    sim$provenanceTable <- data.table("Location" = factor(rep(c(1,2), each = 5)),
+                                      "Provenance" = factor(rep(c(2,1), each = 5)),
                                       "speciesCode" = rep(c("Pice_gla", "Pice_mar", "Popu_tre", "Pinu_con", "Abie_las"), 2))
   }
   return(invisible(sim))
