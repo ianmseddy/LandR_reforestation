@@ -48,7 +48,7 @@ defineModule(sim, list(
     expectsInput(objectName = "cohortData", objectClass = "data.table",
                  desc = "table with attributes of cohorts that are harvested"),
     expectsInput(objectName = "speciesEcoregion", objectClass = "data.table",
-                 desc = "data table with maxB and maxANPP estimates for each ecodistrict-lcc-species combination"),
+                 desc = "data table with maxB and maxANPP estimates..."),
     expectsInput(objectName = "provenanceTable", objectClass = "data.table",
                  desc = "Data table with 3 columns. Location is reforestation location (as ecoregion),
                  Provenance is the provenance to be planted (as ecoregion),
@@ -127,7 +127,7 @@ Save <- function(sim) {
 
 ### template for your event2
 plantNewCohorts <- function(sim) {
-
+  browser()
   cohortData <- sim$cohortData
   pixelGroupMap <- sim$pixelGroupMap
 
