@@ -177,28 +177,24 @@ plantNewCohorts <- function(sim) {
                                                     pixelGroup = as.integer(getValues(sim$pixelGroupMap)[treedHarvestedLoci]),
                                                     harvestTime = time(sim))
 
-  sim$treedHarvestPixelTableSinceLastDisp[, pixelGroup := as.integer(getValues(sim$pixelGroupMap))[pixelIndex]]
-
-  #append previous years harvest -- why?
-  treedHarvestPixelTableSinceLastDisp <- rbindlist(list(sim$treedHarvestPixelTableSinceLastDisp,
-                                                        treedHarvestPixelTableSinceLastDisp))
  #this will be problematic if  partial harvest
   harvestPixelCohortData <- cohortDataLong[pixelGroup %in% unique(treedHarvestPixelTableSinceLastDisp$pixelGroup) & harvested == 1]
 
   harvestPixelCohortData <- harvestPixelCohortData[treedHarvestPixelTableSinceLastDisp,
                                                    on = c("pixelIndex", 'pixelGroup')]
   #Review lines 166 to 178 when you better understand the purpose of treedHarvestPixelTableSinceLastDisp
-  set(harvestPixelCohortData, NULL, c("harvested", "harvestedBiomass", 'totalB', 'age'), NULL)
+  set(harvestPixelCohortData, NULL, c("harvested", "harvestedBiomass", 'totalB'), NULL)
+  #Originally, the line above set age to NULL. This cannot happen w/ partial harvest.
 
   #Test for when a pixel group is only half disturbed (via selective harvest)
-  outs <- updateCohortData(newPixelCohortData = harvestPixelCohortData,
-                           cohortData = sim$cohortData,
-                           pixelGroupMap = sim$pixelGroupMap,
-                           currentTime = round(time(sim)),
-                           speciesEcoregion = sim$speciesEcoregion,
-                           treedFirePixelTableSinceLastDisp = treedHarvestPixelTableSinceLastDisp,
-                           provenanceTable = sim$provenanceTable,
-                           successionTimestep = P(sim)$successionTimeStep)
+  outs <- updateCohortDataPostHarvest (newPixelCohortData = harvestPixelCohortData,
+                                       cohortData = sim$cohortData,
+                                       pixelGroupMap = sim$pixelGroupMap,
+                                       currentTime = round(time(sim)),
+                                       speciesEcoregion = sim$speciesEcoregion,
+                                       treedHarvestPixelTableSinceLastDisp = treedHarvestPixelTableSinceLastDisp,
+                                       provenanceTable = sim$provenanceTable,
+                                       successionTimestep = P(sim)$successionTimeStep)
 
   sim$cohortData <- outs$cohortData
   sim$pixelGroupMap <- outs$pixelGroupMap
