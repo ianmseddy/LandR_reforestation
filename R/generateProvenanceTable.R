@@ -3,7 +3,7 @@
 #' @param transferTable a data.table containing height reductions by seed source and ecoregion. At the moment this is
 #' BECvarfut_plantation, BECvar_seed, and HTp_pred. If not provided, this will return a table where
 #' every species is planted wherever possible, according to ecoregionDT
-#' @param ecoregionDT the table saved to the attributes of sim$ecoregionRst
+#' @param ecoregionCol the column name in ecoregion to match with transferTable - this matching is hardcoded
 #' @param ecoregionKey a table for mapping ecoregion codes to the BEC zone/subzone/variant
 #' column used by transferTable
 #' @param sppEquiv the LandR sppEquivalency table for matchign species names
@@ -11,58 +11,40 @@
 #' @param method experimental - this will change how particular species are prioritized for planting
 #' @return a provenance table object to be used with LandR_reforestation
 #' @export
-generateBCProvenanceTable <- function(transferTable = NULL, ecoregionDT, ecoregionKey,
+generateBCProvenanceTable <- function(transferTable = NULL, ecoregionCol, ecoregionKey,
                                       method = 'default', sppEquiv, sppEquivCol) {
-  browser()
-  if (is.factor(ecoregionDT$ecoregion)) {
-    #ecoregions below 10 have 0 in front of them. I prefer to change this than change every other use of ecoregion
-    ecoregionDT[, ecoregion := as.numeric(as.character(ecoregion))]
-  }
 
+  transferTable <- copy(transferTable)
   if (!is.null(transferTable)) {
     #due to the factorization of the zsv column in BEC zone data,
-    splitUpZones <- strsplit(x = as.character(ecoregionKey$zone_subzone_variant), split = "-")
+    splitUpZones <- strsplit(x = as.character(ecoregionKey[, get(ecoregionCol)]), split = "-")
     newCol <- lapply(splitUpZones, FUN = function(x){
       newX <- gsub(x, pattern = "^NA", replacement = "") %>%
         paste(., collapse = "")
     }) %>%
       unlist(.)
 
-    ecoregionKey$zone_subzone_variant <- newCol
-
-    setkey(ecoregionKey, zone_subzone_variant)
-    setkey(transferTable, BECvarfut_plantation)
-
-    provenanceTable <- transferTable[ecoregionKey, on = c('BECvarfut_plantation' = 'zone_subzone_variant')]
-    setnames(provenanceTable, 'speciesEcoregionCode', new = 'ecoregion')
-    provenanceTable <- provenanceTable[ecoregionKey, on = c("BECvar_seed" = 'zone_subzone_variant')]
-    setnames(provenanceTable, 'speciesEcoregionCode', new = 'Provenance')
-
-    #rename spp col to match sppEquivalencies
+    ecoregionKey$newCol <- newCol
     spp <- c('BC_Forestry', eval(sppEquivCol))
     sppEquiv <- sppEquiv[, .SD, .SDcols = spp]
-    provenanceTable <- provenanceTable[sppEquiv, on = c("species" = "BC_Forestry")]
-    provenanceTable[, species := NULL]
-    setnames(provenanceTable, eval(sppEquivCol), 'speciesCode')
+    transferTable <- transferTable[sppEquiv, on = c("species" = "BC_Forestry")]
+    transferTable[, species := NULL]
+    setnames(transferTable, eval(sppEquivCol), 'speciesCode')
+
+    setkey(ecoregionKey, newCol)
+    setkey(transferTable, BECvarfut_plantation)
 
     if (method == "default") {
 
       #subset each ecoregionGroup/species by the minimum height reduction (ie max when expressed as proportion) among provenances
-      optimalProvenance <- provenanceTable[ecoregion %in% ecoregionDT$ecoregion] %>%
-        .[, score := rank(HTp_pred), by = .(ecoregionGroup, speciesCode)] %>%
-        .[score == 1, .(speciesCode, ecoregionGroup, Provenance)]
+      optimalProvenance <- transferTable[, score := rank(HTp_pred, ties.method = 'random'), by = .(BECvarfut_plantation, speciesCode)]# %>%
+        .[, best := max(score), .(BECvarfut_plantation, speciesCode)] %>%
+        .[score == best,]
 
-      #These are ecoregions - need to add back in 'speciesEcoregion' aka the ecoregion/landcover grouping
-      provenanceTable <- optimalProvenance[ecoregionDT, on = c("ecoregionGroup" = "ecoregion"), allow.cartesian = TRUE]
-      #ecoregionGroup represents the ecoregionGroup here - because there is no 'ecoregionGroup' in the AMAT tables,
-      provenanceTable[, ecoregionGroup := ecoregionGroup]
-      provenanceTable[, c('ecoregionGroup', 'ID') := c(NULL, NULL)]
+      optimalProvenance <- optimalProvenance[ecoregionKey, on = c('BECvarfut_plantation' = 'newCol'), allow.cartesian = TRUE]
+      setnames(optimalProvenance, old = "BECvar_seed", "Provenance")
 
-      #You don't need to know about land cover with provenance - growth modifications will only be done by ecoregion
-      #We could optionally pass the ecoregionMap table to harvestPixelCohortData - join ecoregions to ecoregionGroup,
-      #and join that resulting table to provenance Table via one-to-many
-      #It is irrelevant whether species-ecoregionGroup combinations exist that aren't in speciesEcoregion - they will never be planted
-      #ID is the value inside sim$ecoregionMap - It isn't necessary might be better to leave it in for analyses?
+      provenanceTable <- optimalProvenance[, .(ecoregionGroup, Provenance, speciesCode)]
 
     } else if (method == "Elizabeth's other ideas") {
       #implement Elizabeth's other ideas here
