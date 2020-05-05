@@ -36,6 +36,8 @@ defineModule(sim, list(
                     desc = "Should the module simulate harvest in addition to reforestation"),
     defineParameter("selectiveHarvest", "character", NULL, NA, NA,
                     desc = "optional vector of species to harvest. Default is to harvest all biomass"),
+    defineParameter("simulateHarvest", 'logical', FALSE, NA, NA,
+                    desc = 'generate a random 50 pixel harvest layer from pixelGroupMap for testing purposes only'),
     defineParameter("successionTimeStep", "numeric", 10, NA, NA,
                     desc = "succession time step used by biomass succession module")
   ),
@@ -83,15 +85,26 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
       sim <- scheduleEvent(sim, P(sim)$reforestInitialTime, "LandR_reforestation", "reforest", eventPriority = 7)
       sim <- scheduleEvent(sim, P(sim)$.plotInitialTime, "LandR_reforestation", "plot")
       sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, "LandR_reforestation", "save")
+
+      if (P(sim)$simulateHarvest) {
+        sim <- scheduleEvent(sim, P(sim)$reforestInitialTime, "LandR_reforestation", 'simulateHarvest', eventPriority = 6)
+      }
     },
     plot = {
       # ! ----- EDIT BELOW ----- ! #
       Plot(sim$harvestedBiomass, new = TRUE, title = "Harvested Biomass")
       sim <- scheduleEvent(sim, time(sim) + P(sim)$.plotInterval, "LandR_reforestation", "plot")
     },
+
     save = {
       Save(sim)
       scheduleEvent(sim, time(sim) + P(sim)$.saveInterval, "LandR_reforestation", "save")
+    },
+
+    simulateHarvest = {
+      sim$rstCurrentHarvest <- makeHarvestRaster(pixelGroupMap = sim$pixelGroupMap,
+                                                 time = time(sim))
+      scheduleEvent(sim, time(sim) + P(sim)$reforestInterval, "LandR_reforestation", 'simulateHarvest', eventPriority = 6)
     },
 
     reforest = {
@@ -206,6 +219,21 @@ plantNewCohorts <- function(sim) {
 
   return(invisible(sim))
 }
+
+makeHarvestRaster <- function(pixelGroupMap, time){
+
+  index <- 1:ncell(pixelGroupMap)
+  index <- index[!is.na(pixelGroupMap)]
+  rstCurrentHarvest <- pixelGroupMap
+  harvestLoc <- sample(x = index, size = 50, replace = FALSE)
+  rstCurrentHarvest[!is.na(rstCurrentHarvest)] <- 0
+  rstCurrentHarvest[harvestLoc] <- 1
+  rstCurrentHarvest@data@attributes$Year <- time
+
+  return(rstCurrentHarvest)
+}
+
+
 
 .inputObjects <- function(sim) {
   #cacheTags <- c(currentModule(sim), "function:.inputObjects") ## uncomment this if Cache is being used
