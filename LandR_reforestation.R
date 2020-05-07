@@ -223,7 +223,7 @@ plantNewCohorts <- function(sim) {
 makeHarvestRaster <- function(pixelGroupMap, time){
 
   index <- 1:ncell(pixelGroupMap)
-  index <- index[!is.na(pixelGroupMap)]
+  index <- index[!is.na(pixelGroupMap[])]
   rstCurrentHarvest <- pixelGroupMap
   harvestLoc <- sample(x = index, size = 50, replace = FALSE)
   rstCurrentHarvest[!is.na(rstCurrentHarvest)] <- 0
