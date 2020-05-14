@@ -128,6 +128,9 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
 ### template initialization
 Init <- function(sim) {
 
+  #initiate harvested biomass
+  sim$harvestedBiomass <- raster(sim$pixelGroupMap)
+  sim$harvesteBiomass[!is.na(sim$harvestedBiomass[])] <- 0
 
   return(invisible(sim))
 }
@@ -142,14 +145,16 @@ Save <- function(sim) {
 ### template for your event2
 plantNewCohorts <- function(sim) {
 
-  cohortData <- sim$cohortData
+  cohortData <- copy(sim$cohortData)
+  cols <- c("pixelGroup", 'speciesCode', 'ecoregionGroup', 'age', 'B') %>%
+    .[. %in% colnames(cohortData)] #originally had Provenance
+  cohortData <- cohortData[, ..cols]
   pixelGroupMap <- sim$pixelGroupMap
 
-  #This should use LandR::addPixelsToCohortData but it can't handle 2 cohorts in 1 pixelGroup, apparently?
   pixelGroupTable <- na.omit(data.table(pixelGroup = getValues(pixelGroupMap),
                                         pixelIndex = 1:ncell(pixelGroupMap),
                                         harvested = getValues(sim$rstCurrentHarvest)))
-  #Need to check what happens if we have NA - ALSO REMOVE mortality aNPPACt mortPred growthPred
+
   cohortDataLong <- cohortData[pixelGroupTable, on = "pixelGroup", allow.cartesian = TRUE]
 
   if (P(sim)$harvestBiomass) {
@@ -164,16 +169,15 @@ plantNewCohorts <- function(sim) {
       #check this is actually working. CohortData object needs to be updated
       cohortDataLong$harvestedBiomass <- cohortDataLong[, .(totalB = sum(totalB))]
     }
-    sim$harvestedBiomass <- sim$rstCurrentHarvest
 
     #Account for multiple cohorts harvested in one pixel
     pixelBiomass <- cohortDataLong[, .(harvestedBiomass = sum(harvestedBiomass)), by = "pixelIndex"]
 
     sim$harvestedBiomass[pixelBiomass$pixelIndex] <- pixelBiomass$harvestedBiomass
     rm(pixelBiomass)
-    #Update cohortData - need to distinguish
+
     cohortDataLong[, B := B - harvestedBiomass]
-    #This is triggering an error. B is an integer in LBMR try class(cohortDataLong$totalB) <- "numeric"
+
     cohortDataLong[, totalB := sum(.SD$B), by = .(pixelIndex)]
   }
 
@@ -195,6 +199,7 @@ plantNewCohorts <- function(sim) {
 
   harvestPixelCohortData <- harvestPixelCohortData[treedHarvestPixelTableSinceLastDisp,
                                                    on = c("pixelIndex", 'pixelGroup')]
+
   #Review lines 166 to 178 when you better understand the purpose of treedHarvestPixelTableSinceLastDisp
   set(harvestPixelCohortData, NULL, c("harvested", "harvestedBiomass", 'totalB'), NULL)
   #Originally, the line above set age to NULL. This cannot happen w/ partial harvest.
@@ -208,7 +213,9 @@ plantNewCohorts <- function(sim) {
                                        treedHarvestPixelTableSinceLastDisp = treedHarvestPixelTableSinceLastDisp,
                                        provenanceTable = sim$provenanceTable,
                                        successionTimestep = P(sim)$successionTimeStep)
-
+  if (is.null(outs$cohortData$Provenance)) {
+    warning("LandR_reforestation Provenance is NULL")
+  }
   sim$cohortData <- outs$cohortData
   sim$pixelGroupMap <- outs$pixelGroupMap
   sim$pixelGroupMap[] <- as.integer(sim$pixelGroupMap[])
@@ -276,8 +283,9 @@ makeHarvestRaster <- function(pixelGroupMap, time){
   }
 
   if (!suppliedElsewhere('treedHarvestPixelTableSinceLastDisp', sim)) {
-    sim$treedHarvestPixelTableSinceLastDisp <- data.table(pixelIndex = integer(), pixelGroup = integer(),
-                                                       harvestTime = numeric())
+
+    sim$treedHarvestPixelTableSinceLastDisp <- data.table(pixelIndex = integer(0), pixelGroup = integer(0),
+                                                       harvestTime = numeric(0))
   }
 
   if (!suppliedElsewhere('speciesEcoregion', sim)) {
