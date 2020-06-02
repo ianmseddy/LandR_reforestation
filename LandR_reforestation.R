@@ -113,7 +113,7 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
         sim <- plantNewCohorts(sim)
       }
 
-      sim <- scheduleEvent(sim, time(sim) + P(sim)$reforestInterval, "LandR_reforestation", "reforest")
+      sim <- scheduleEvent(sim, time(sim) + P(sim)$reforestInterval, "LandR_reforestation", "reforest", eventPriority = 7)
 
     },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
