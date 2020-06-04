@@ -32,10 +32,6 @@ defineModule(sim, list(
     defineParameter("reforestInitialTime", "numeric", start(sim), NA, NA, "Time of first reforest. Set to NA if no
                     reforestation is desired. Harvest will still occur and map reclassified, with natural regen"),
     defineParameter("reforestInterval", "numeric", 1, NA, NA, "Time between reforest events"),
-    defineParameter("harvestBiomass", "logical", TRUE, NA, NA,
-                    desc = "Should the module simulate harvest in addition to reforestation"),
-    defineParameter("selectiveHarvest", "character", NULL, NA, NA,
-                    desc = "optional vector of species to harvest. Default is to harvest all biomass"),
     defineParameter("simulateHarvest", 'logical', FALSE, NA, NA,
                     desc = 'generate a random 50 pixel harvest layer from pixelGroupMap for testing purposes only'),
     defineParameter("successionTimeStep", "numeric", 10, NA, NA,
@@ -108,6 +104,7 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
     },
 
     reforest = {
+
       #planting new cohorts only scheduled if there is a non-null disturbance layer with current year
       if (!LandR::scheduleDisturbance(sim$rstCurrentHarvest, time(sim))) {
         sim <- plantNewCohorts(sim)
@@ -151,71 +148,28 @@ plantNewCohorts <- function(sim) {
   cohortData <- cohortData[, ..cols]
   pixelGroupMap <- sim$pixelGroupMap
 
-  pixelGroupTable <- na.omit(data.table(pixelGroup = getValues(pixelGroupMap),
-                                        pixelIndex = 1:ncell(pixelGroupMap),
-                                        harvested = getValues(sim$rstCurrentHarvest)))
+  newcols <- c(cols, "pixelIndex")
+  harvestPixelCohortData <- sim$harvestedCohorts[, ..newcols]
+  harvestPixelCohortData[, B := 0]
 
-  cohortDataLong <- cohortData[pixelGroupTable, on = "pixelGroup", allow.cartesian = TRUE]
+  thpt <- unique(harvestPixelCohortData[, .(pixelGroup, pixelIndex)])
 
-  if (P(sim)$harvestBiomass) {
-    #Remove biomass from cohortData
-    #the presence of harvest causes potential removal of species cohorts from the pixels that have been affected.
-    cohortDataLong$harvestedBiomass <- ifelse(cohortDataLong$harvested == 1,
-                                              cohortDataLong$B,
-                                              0)
-    #Get sum of B at harvest locations at store as raster
-    if (!is.null(P(sim)$selectiveHarvest)) {
-      cohortDataLong[!cohortDataLong$speciesCode %in% P(sim)$selectiveHarvest, harvestedBiomass := 0]
-      #check this is actually working. CohortData object needs to be updated
-      cohortDataLong$harvestedBiomass <- cohortDataLong[, .(totalB = sum(totalB))]
-    }
+  #Remove biomass from cohortData
+  #thpt used to 0 pixelGroupMap
 
-    #Account for multiple cohorts harvested in one pixel
-    pixelBiomass <- cohortDataLong[, .(harvestedBiomass = sum(harvestedBiomass)), by = "pixelIndex"]
-
-    sim$harvestedBiomass[pixelBiomass$pixelIndex] <- pixelBiomass$harvestedBiomass
-    rm(pixelBiomass)
-
-    cohortDataLong[, B := B - harvestedBiomass]
-
-    cohortDataLong[, totalB := sum(.SD$B), by = .(pixelIndex)]
-  }
-
-  #Track harvested cohorts - this approach is borrowed from LandR Biomass_regeneration
-  harvestedLoci <- which(getValues(sim$rstCurrentHarvest) > 0)
-  treedHarvestedLoci <- if (length(sim$inactivePixelIndex) > 0) {
-    #Harvest *shouldn't* occur on non-treed land, but who knows.
-    harvestedLoci[!(harvestedLoci %in% sim$inactivePixelIndex)] # only evaluate active pixels
-  } else {
-    harvestedLoci
-  }
-
-  treedHarvestPixelTableSinceLastDisp <- data.table(pixelIndex = as.integer(treedHarvestedLoci),
-                                                    pixelGroup = as.integer(getValues(sim$pixelGroupMap)[treedHarvestedLoci]),
-                                                    harvestTime = time(sim))
-
- #this will be problematic if  partial harvest
-  harvestPixelCohortData <- cohortDataLong[pixelGroup %in% unique(treedHarvestPixelTableSinceLastDisp$pixelGroup) & harvested == 1]
-
-  harvestPixelCohortData <- harvestPixelCohortData[treedHarvestPixelTableSinceLastDisp,
-                                                   on = c("pixelIndex", 'pixelGroup')]
-
-  #Review lines 166 to 178 when you better understand the purpose of treedHarvestPixelTableSinceLastDisp
-  set(harvestPixelCohortData, NULL, c("harvested", "harvestedBiomass", 'totalB'), NULL)
-  #Originally, the line above set age to NULL. This cannot happen w/ partial harvest.
-
-  #Test for when a pixel group is only half disturbed (via selective harvest)
   outs <- updateCohortDataPostHarvest (newPixelCohortData = harvestPixelCohortData,
                                        cohortData = sim$cohortData,
                                        pixelGroupMap = sim$pixelGroupMap,
                                        currentTime = round(time(sim)),
                                        speciesEcoregion = sim$speciesEcoregion,
-                                       treedHarvestPixelTableSinceLastDisp = treedHarvestPixelTableSinceLastDisp,
+                                       treedHarvestPixelTable = thpt,
                                        provenanceTable = sim$provenanceTable,
                                        successionTimestep = P(sim)$successionTimeStep)
+
   if (is.null(outs$cohortData$Provenance)) {
-    warning("LandR_reforestation Provenance is NULL")
+    warning("LandR_reforestation Provenance is NULL during plantNewCohorts")
   }
+
   sim$cohortData <- outs$cohortData
   sim$pixelGroupMap <- outs$pixelGroupMap
   sim$pixelGroupMap[] <- as.integer(sim$pixelGroupMap[])
