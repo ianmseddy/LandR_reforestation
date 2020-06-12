@@ -55,12 +55,7 @@ defineModule(sim, list(
   outputObjects = bind_rows(
     #createsOutput("objectName", "objectClass", "output object description", ...),
     createsOutput(objectName = 'harvestedBiomass', objectClass = "RasterLayer",
-                  desc = "raster with harvested biomass from cohortData"),
-    createsOutput(objectName = 'treedHarvestPixelTableSinceLastDisp', objectClass = "data.table",
-                  desc = "3 columns: pixelIndex, pixelGroup, and harvestTime. Each row represents a forested pixel that
-                  was harvested between the present year and last dispersal event, w/ corresponding pixelGroup"),
-    createsOutput("lastHarvestYear", "numeric",
-                  desc = "Year of the most recent harvest year")
+                  desc = "raster with harvested biomass from cohortData")
   )
 ))
 
@@ -150,12 +145,11 @@ plantNewCohorts <- function(sim) {
 
   newcols <- c(cols, "pixelIndex")
   harvestPixelCohortData <- sim$harvestedCohorts[, ..newcols]
-  harvestPixelCohortData[, B := 0]
 
   thpt <- unique(harvestPixelCohortData[, .(pixelGroup, pixelIndex)])
 
   #Remove biomass from cohortData
-  #thpt used to 0 pixelGroupMap
+  #treeHarvestPixelTable used to 0 pixelGroupMap
 
   outs <- updateCohortDataPostHarvest (newPixelCohortData = harvestPixelCohortData,
                                        cohortData = sim$cohortData,
@@ -166,6 +160,11 @@ plantNewCohorts <- function(sim) {
                                        provenanceTable = sim$provenanceTable,
                                        successionTimestep = P(sim)$successionTimeStep)
 
+  LandR::assertCohortData(cohortData = outs$cohortData, pixelGroupMap = outs$pixelGroupMap)
+  if (any(is.na(outs$cohortData$ecoregionGroup))) {
+    browser()
+  }
+
   if (is.null(outs$cohortData$Provenance)) {
     warning("LandR_reforestation Provenance is NULL during plantNewCohorts")
   }
@@ -173,10 +172,6 @@ plantNewCohorts <- function(sim) {
   sim$cohortData <- outs$cohortData
   sim$pixelGroupMap <- outs$pixelGroupMap
   sim$pixelGroupMap[] <- as.integer(sim$pixelGroupMap[])
-
-  sim$lastHarvestYear <- time(sim)
-  sim$treedHarvestPixelTableSinceLastDisp <- treedHarvestPixelTableSinceLastDisp
-
 
   return(invisible(sim))
 }
