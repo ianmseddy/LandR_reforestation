@@ -146,6 +146,10 @@ plantNewCohorts <- function(sim) {
   newcols <- c(cols, "pixelIndex")
   harvestPixelCohortData <- sim$harvestedCohorts[, ..newcols]
 
+  #this prevents harvest from occuring on pixels that were burned.
+  #Need better coordination of scheduling of Biomass_regeneration, harvest, and fire
+  harvestPixelCohortData <- harvestPixelCohortData[pixelGroup != 0 & !is.na(speciesCode)]
+
   thpt <- unique(harvestPixelCohortData[, .(pixelGroup, pixelIndex)])
 
   #Remove biomass from cohortData
