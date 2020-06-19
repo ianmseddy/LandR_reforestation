@@ -143,6 +143,9 @@ plantNewCohorts <- function(sim) {
   cohortData <- cohortData[, ..cols]
   pixelGroupMap <- sim$pixelGroupMap
 
+  if (time(sim) == 2020) {
+    browser()
+  }
   newcols <- c(cols, "pixelIndex")
   harvestPixelCohortData <- sim$harvestedCohorts[, ..newcols]
 
