@@ -29,6 +29,8 @@ defineModule(sim, list(
     defineParameter(".useCache", "logical", FALSE, NA, NA,
                     desc = "Should this entire module be run with caching activated? This is generally
                     intended for data-type modules, where stochasticity and time are not relevant"),
+    defineParameter("cohortDefinitionCols", 'character', c("pixelGroup", 'age', 'speciesCode'), NA, NA,
+                    desc = 'columns in cohortData that determine unique cohorts'),
     defineParameter("reforestInitialTime", "numeric", start(sim), NA, NA, "Time of first reforest. Set to NA if no
                     reforestation is desired. Harvest will still occur and map reclassified, with natural regen"),
     defineParameter("reforestInterval", "numeric", 1, NA, NA, "Time between reforest events"),
@@ -143,9 +145,6 @@ plantNewCohorts <- function(sim) {
   cohortData <- cohortData[, ..cols]
   pixelGroupMap <- sim$pixelGroupMap
 
-  if (time(sim) == 2020) {
-    browser()
-  }
   newcols <- c(cols, "pixelIndex")
   harvestPixelCohortData <- sim$harvestedCohorts[, ..newcols]
 
@@ -163,12 +162,13 @@ plantNewCohorts <- function(sim) {
                                        pixelGroupMap = sim$pixelGroupMap,
                                        currentTime = round(time(sim)),
                                        speciesEcoregion = sim$speciesEcoregion,
+                                       cohortDefinitionCols = P(sim)$cohortDefinitionCols,
                                        treedHarvestPixelTable = thpt,
                                        provenanceTable = sim$provenanceTable,
                                        successionTimestep = P(sim)$successionTimeStep)
 
-  LandR::assertCohortData(cohortData = outs$cohortData, pixelGroupMap = outs$pixelGroupMap)
-  if (any(is.na(outs$cohortData$ecoregionGroup))) {
+  if (any(is.na(outs$cohortData$speciesCode))){
+    #this is likely caused by harvest occuring on an empty pixel
     browser()
   }
 
