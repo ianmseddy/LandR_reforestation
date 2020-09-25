@@ -38,7 +38,7 @@ defineModule(sim, list(
                     desc = 'generate a random 50 pixel harvest layer from pixelGroupMap for testing purposes only'),
     defineParameter("successionTimeStep", "numeric", 10, NA, NA,
                     desc = "succession time step used by biomass succession module"),
-    defineParameter("trackHarvest", 'logical', FALSE, NA, NA, 'add "harvest" column to cohortData that tracks harvested cohorts')
+    defineParameter("trackPlanting", 'logical', FALSE, NA, NA, 'add "harvest" column to cohortData that tracks planted cohorts')
   ),
   inputObjects = bind_rows(
     #expectsInput("objectName", "objectClass", "input object description", sourceURL, ...),
@@ -167,7 +167,7 @@ plantNewCohorts <- function(sim) {
                                        treedHarvestPixelTable = thpt,
                                        provenanceTable = sim$provenanceTable,
                                        successionTimestep = P(sim)$successionTimeStep,
-                                       trackHarvest = P(sim)$trackHarvest)
+                                       trackPlanting = P(sim)$trackPlanting)
 
   if (any(is.na(outs$cohortData$speciesCode))){
     #this is likely caused by harvest occuring on an empty pixel
