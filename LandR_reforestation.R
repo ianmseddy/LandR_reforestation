@@ -169,11 +169,6 @@ plantNewCohorts <- function(sim) {
                                        successionTimestep = P(sim)$successionTimeStep,
                                        trackPlanting = P(sim)$trackPlanting)
 
-  if (any(is.na(outs$cohortData$speciesCode))){
-    #this is likely caused by harvest occuring on an empty pixel
-    browser()
-  }
-
   if (is.null(outs$cohortData$Provenance)) {
     warning("LandR_reforestation Provenance is NULL during plantNewCohorts")
   }
