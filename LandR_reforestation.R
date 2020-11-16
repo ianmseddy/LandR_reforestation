@@ -139,7 +139,6 @@ Save <- function(sim) {
 
 ### template for your event2
 plantNewCohorts <- function(sim) {
-
   cohortData <- copy(sim$cohortData)
   cols <- c("pixelGroup", 'speciesCode', 'ecoregionGroup', 'age', 'B') %>%
     .[. %in% colnames(cohortData)] #originally had Provenance
@@ -252,7 +251,7 @@ makeHarvestRaster <- function(pixelGroupMap, time){
   }
 
   if (!suppliedElsewhere("provenanceTable", sim)) {
-    sim$provenanceTable <- data.table("Location" = sim$speciesEcoregion$ecoregionGroup,
+    sim$provenanceTable <- data.table("ecoregionGroup" = sim$speciesEcoregion$ecoregionGroup,
                                       "Provenance" = sim$speciesEcoregion$ecoregionGroup,
                                       "speciesCode" = sim$speciesEcoregion$speciesCode)
   }
