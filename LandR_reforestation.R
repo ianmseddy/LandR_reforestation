@@ -36,7 +36,7 @@ defineModule(sim, list(
     defineParameter("reforestInterval", "numeric", 1, NA, NA, "Time between reforest events"),
     defineParameter("simulateHarvest", 'logical', FALSE, NA, NA,
                     desc = 'generate a random 50 pixel harvest layer from pixelGroupMap for testing purposes only'),
-    defineParameter("successionTimeStep", "numeric", 10, NA, NA,
+    defineParameter("successionTimestep", "numeric", 10, NA, NA,
                     desc = "succession time step used by biomass succession module"),
     defineParameter("trackPlanting", 'logical', FALSE, NA, NA, 'add "harvest" column to cohortData that tracks planted cohorts')
   ),
@@ -139,6 +139,7 @@ Save <- function(sim) {
 
 ### template for your event2
 plantNewCohorts <- function(sim) {
+
   cohortData <- copy(sim$cohortData)
   cols <- c("pixelGroup", 'speciesCode', 'ecoregionGroup', 'age', 'B') %>%
     .[. %in% colnames(cohortData)] #originally had Provenance
@@ -165,7 +166,7 @@ plantNewCohorts <- function(sim) {
                                        cohortDefinitionCols = P(sim)$cohortDefinitionCols,
                                        treedHarvestPixelTable = thpt,
                                        provenanceTable = sim$provenanceTable,
-                                       successionTimestep = P(sim)$successionTimeStep,
+                                       successionTimestep = P(sim)$successionTimestep,
                                        trackPlanting = P(sim)$trackPlanting)
 
   if (is.null(outs$cohortData$Provenance)) {
