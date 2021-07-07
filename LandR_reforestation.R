@@ -29,22 +29,23 @@ defineModule(sim, list(
     defineParameter(".useCache", "logical", FALSE, NA, NA,
                     desc = "Should this entire module be run with caching activated? This is generally
                     intended for data-type modules, where stochasticity and time are not relevant"),
-    defineParameter("cohortDefinitionCols", 'character', c("pixelGroup", 'age', 'speciesCode'), NA, NA,
-                    desc = 'columns in cohortData that determine unique cohorts'),
+    defineParameter("cohortDefinitionCols", "character", c("pixelGroup", "age", "speciesCode"), NA, NA,
+                    desc = "columns in cohortData that determine unique cohorts"),
     defineParameter("reforestInitialTime", "numeric", start(sim), NA, NA, "Time of first reforest. Set to NA if no
                     reforestation is desired. Harvest will still occur and map reclassified, with natural regen"),
     defineParameter("reforestInterval", "numeric", 1, NA, NA, "Time between reforest events"),
-    defineParameter("simulateHarvest", 'logical', FALSE, NA, NA,
-                    desc = 'generate a random 50 pixel harvest layer from pixelGroupMap for testing purposes only'),
+    defineParameter("simulateHarvest", "logical", FALSE, NA, NA,
+                    desc = "generate a random 50 pixel harvest layer from pixelGroupMap for testing purposes only"),
     defineParameter("successionTimestep", "numeric", 10, NA, NA,
                     desc = "succession time step used by biomass succession module"),
-    defineParameter("trackPlanting", 'logical', FALSE, NA, NA, 'add "harvest" column to cohortData that tracks planted cohorts')
+    defineParameter("trackPlanting", "logical", FALSE, NA, NA,
+                    desc = "add 'harvest' column to cohortData that tracks planted cohorts")
   ),
   inputObjects = bind_rows(
     #expectsInput("objectName", "objectClass", "input object description", sourceURL, ...),
-    expectsInput(objectName = 'rstCurrentHarvest', objectClass = "RasterLayer",
+    expectsInput(objectName = "rstCurrentHarvest", objectClass = "RasterLayer",
                  desc = "Binary raster layer with locations of harvest (represented as 1)", sourceURL = NA),
-    expectsInput(objectName = 'pixelGroupMap', objectClass = "RasterLayer",
+    expectsInput(objectName = "pixelGroupMap", objectClass = "RasterLayer",
                  desc = "Location of pixel groups"),
     expectsInput(objectName = "cohortData", objectClass = "data.table",
                  desc = "table with attributes of cohorts that are harvested"),
@@ -53,12 +54,16 @@ defineModule(sim, list(
     expectsInput(objectName = "provenanceTable", objectClass = "data.table",
                  desc = "Data table with 3 columns. Location is reforestation location (as ecoregion),
                  Provenance is the provenance to be planted (as ecoregion),
-                 speciesCode is the species to be planted")
+                 speciesCode is the species to be planted"),
+    expectsInput(objectName = "speciesEcoregion", objectClass = "data.table",
+                 desc = "contains ecoregion traits by species; creates provenance table if not supplied")
   ),
   outputObjects = bind_rows(
-    #createsOutput("objectName", "objectClass", "output object description", ...),
-    createsOutput(objectName = 'harvestedBiomass', objectClass = "RasterLayer",
-                  desc = "raster with harvested biomass from cohortData")
+    createsOutput(objectName = "provenanceTable", objectClass = "data.table",
+                  desc = paste("A table with three columns: ecoregionGroup, species, and Provenance.",
+                               "It is used to determine the species and provenance to plant in each ecoregion.",
+                               "If not supplied, it will be created from speciesEcoregion, using every",
+                               "available species that occurs in each ecoregion."))
   )
 ))
 
@@ -81,7 +86,7 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
       sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, "LandR_reforestation", "save")
 
       if (P(sim)$simulateHarvest) {
-        sim <- scheduleEvent(sim, P(sim)$reforestInitialTime, "LandR_reforestation", 'simulateHarvest', eventPriority = 6)
+        sim <- scheduleEvent(sim, P(sim)$reforestInitialTime, "LandR_reforestation", "simulateHarvest", eventPriority = 6)
       }
     },
     plot = {
@@ -98,7 +103,7 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
     simulateHarvest = {
       sim$rstCurrentHarvest <- makeHarvestRaster(pixelGroupMap = sim$pixelGroupMap,
                                                  time = time(sim))
-      scheduleEvent(sim, time(sim) + P(sim)$reforestInterval, "LandR_reforestation", 'simulateHarvest', eventPriority = 6)
+      scheduleEvent(sim, time(sim) + P(sim)$reforestInterval, "LandR_reforestation", "simulateHarvest", eventPriority = 6)
     },
 
     reforest = {
@@ -123,9 +128,6 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
 ### template initialization
 Init <- function(sim) {
 
-  #initiate harvested biomass
-  sim$harvestedBiomass <- raster(sim$pixelGroupMap)
-  sim$harvesteBiomass[!is.na(sim$harvestedBiomass[])] <- 0
 
   return(invisible(sim))
 }
@@ -136,28 +138,41 @@ Save <- function(sim) {
   return(invisible(sim))
 }
 
-
-### template for your event2
 plantNewCohorts <- function(sim) {
 
+  provenanceTable <- if (is.null(sim$provenanceTable)) {
+    #c
+  } else {
+    sim$provenanceTable
+    }
+  browser()
   cohortData <- copy(sim$cohortData)
-  cols <- c("pixelGroup", 'speciesCode', 'ecoregionGroup', 'age', 'B') %>%
-    .[. %in% colnames(cohortData)] #originally had Provenance
+  cols <- c("pixelGroup", "speciesCode", "ecoregionGroup", "age", "B")
+  cols <- cols[cols %in% colnames(cohortData)]
+
   cohortData <- cohortData[, ..cols]
-  pixelGroupMap <- sim$pixelGroupMap
 
-  newcols <- c(cols, "pixelIndex")
-  harvestPixelCohortData <- sim$harvestedCohorts[, ..newcols]
+  cols <- c(cols, "pixelIndex")
+  harvestLoc <- data.table(pixelIndex = 1:ncell(sim$rstCurrentHarvest),
+                           harvest = getValues(sim$rstCurrentHarvest))
+  harvestLoc <- harvestLoc[harvest == 1,]$pixelIndex
 
-  #this prevents harvest from occuring on pixels that were burned.
-  #Need better coordination of scheduling of Biomass_regeneration, harvest, and fire
+  #double check what cohortDefinitionCOls do - need age, B
+  pixelCohortData <- LandR::addPixels2CohortData(cohortData = cohortData,
+                                                 pixelGroupMap = sim$pixelGroupMap,
+                                                 cohortDefinitionCols = P(sim)$cohortDefinitionCols)
+
+  harvestPixelCohortData <- pixelCohortData[pixelIndex %in% harvestLoc, ..cols]
+
+  #TODO: confirm replanting mechanics - if no species are present, replant with all species
   harvestPixelCohortData <- harvestPixelCohortData[pixelGroup != 0 & !is.na(speciesCode)]
 
   thpt <- unique(harvestPixelCohortData[, .(pixelGroup, pixelIndex)])
 
+
   #Remove biomass from cohortData
   #treeHarvestPixelTable used to 0 pixelGroupMap
-
+  browser()
   outs <- updateCohortDataPostHarvest (newPixelCohortData = harvestPixelCohortData,
                                        cohortData = sim$cohortData,
                                        pixelGroupMap = sim$pixelGroupMap,
@@ -180,7 +195,7 @@ plantNewCohorts <- function(sim) {
   return(invisible(sim))
 }
 
-makeHarvestRaster <- function(pixelGroupMap, time){
+makeHarvestRaster <- function(pixelGroupMap, time) {
 
   index <- 1:ncell(pixelGroupMap)
   index <- index[!is.na(pixelGroupMap[])]
@@ -217,7 +232,7 @@ makeHarvestRaster <- function(pixelGroupMap, time){
                                  "totalB" = B,
                                  "mortality" = 0,
                                  "aNPPAct" = 1,
-                                 'speciesProportion' = 1
+                                 "speciesProportion" = 1
                                  )
     #Add second cohort to a pixelGroup so it is a little more realistic for now
     twoCohort <- data.table("Abie_las", 1, 1, 20, sim$cohortData$B[1], sim$cohortData$B[1]*2, 0, 1, 0.5)
@@ -229,19 +244,18 @@ makeHarvestRaster <- function(pixelGroupMap, time){
 
   if (!suppliedElsewhere("rstCurrentHarvest", sim)) {
     message("No harvest layer supplied. Simulating one year of harvest")
-    sim$rstCurrentHarvest <- sim$pixelGroupMap %>%
-      setValues(., round(runif(n = ncell(.), min = 0, max = 0.55), digits = 0))
-    sim$rstCurrentHarvest[is.na(sim$pixelGroupMap)] <- NA
+    sim$rstCurrentharvest <- setValues(sim$pixelGroupMap, round(runif(n = ncell(.), min = 0, max = 0.55), digits = 0))
+    sim$rstCurrentHarvest[is.na(sim$pixelGroupMap[])] <- NA
     sim$rstCurrentHarvest@data@attributes <- list("Year" = P(sim)$reforestInitialTime)
   }
 
-  if (!suppliedElsewhere('treedHarvestPixelTableSinceLastDisp', sim)) {
+  if (!suppliedElsewhere("treedHarvestPixelTableSinceLastDisp", sim)) {
 
     sim$treedHarvestPixelTableSinceLastDisp <- data.table(pixelIndex = integer(0), pixelGroup = integer(0),
                                                        harvestTime = numeric(0))
   }
 
-  if (!suppliedElsewhere('speciesEcoregion', sim)) {
+  if (!suppliedElsewhere("speciesEcoregion", sim)) {
     sim$speciesEcoregion <- data.table(factor(ecoregionGroup = rep(x = 1:2, each = 5)),
                                        speciesCode = rep(x = c("Pice_gla", "Pice_mar", "Popu_tre", "Pinu_con", "Abie_las"),
                                                          times = 2, ),
@@ -251,11 +265,6 @@ makeHarvestRaster <- function(pixelGroupMap, time){
     sim$speciesEcoregion[, maxANPP := maxB/30]
   }
 
-  if (!suppliedElsewhere("provenanceTable", sim)) {
-    sim$provenanceTable <- data.table("ecoregionGroup" = sim$speciesEcoregion$ecoregionGroup,
-                                      "Provenance" = sim$speciesEcoregion$ecoregionGroup,
-                                      "speciesCode" = sim$speciesEcoregion$speciesCode)
-  }
   return(invisible(sim))
 }
 ### add additional events as needed by copy/pasting from above
