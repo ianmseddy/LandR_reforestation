@@ -60,7 +60,7 @@ defineModule(sim, list(
   ),
   outputObjects = bind_rows(
     createsOutput(objectName = "provenanceTable", objectClass = "data.table",
-                  desc = paste("A table with three columns: ecoregionGroup, species, and Provenance.",
+                  desc = paste("A table with three columns: ecoregionGroup, speciesCode, and Provenance.",
                                "It is used to determine the species and provenance to plant in each ecoregion.",
                                "If not supplied, it will be created from speciesEcoregion, using every",
                                "available species that occurs in each ecoregion."))
@@ -128,6 +128,13 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
 ### template initialization
 Init <- function(sim) {
 
+  #provenanceTable must be created from speciesEcoregion if not supplied
+  #however this table is not always available during .inputObjects
+  if (is.null(sim$provenanceTable)) {
+    sim$provenanceTable <- data.table(ecoregionGroup = sim$speciesEcoregion$ecoregionGroup,
+                                      Provenance = sim$speciesEcoregion$ecoregionGroup,
+                                      speciesCode = sim$speciesEcoregion$speciesCode)
+  }
 
   return(invisible(sim))
 }
@@ -140,12 +147,6 @@ Save <- function(sim) {
 
 plantNewCohorts <- function(sim) {
 
-  provenanceTable <- if (is.null(sim$provenanceTable)) {
-    #c
-  } else {
-    sim$provenanceTable
-    }
-  browser()
   cohortData <- copy(sim$cohortData)
   cols <- c("pixelGroup", "speciesCode", "ecoregionGroup", "age", "B")
   cols <- cols[cols %in% colnames(cohortData)]
@@ -172,7 +173,6 @@ plantNewCohorts <- function(sim) {
 
   #Remove biomass from cohortData
   #treeHarvestPixelTable used to 0 pixelGroupMap
-  browser()
   outs <- updateCohortDataPostHarvest (newPixelCohortData = harvestPixelCohortData,
                                        cohortData = sim$cohortData,
                                        pixelGroupMap = sim$pixelGroupMap,
@@ -183,10 +183,6 @@ plantNewCohorts <- function(sim) {
                                        provenanceTable = sim$provenanceTable,
                                        successionTimestep = P(sim)$successionTimestep,
                                        trackPlanting = P(sim)$trackPlanting)
-
-  if (is.null(outs$cohortData$Provenance)) {
-    warning("LandR_reforestation Provenance is NULL during plantNewCohorts")
-  }
 
   sim$cohortData <- outs$cohortData
   sim$pixelGroupMap <- outs$pixelGroupMap
