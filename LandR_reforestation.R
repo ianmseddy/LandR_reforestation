@@ -15,7 +15,7 @@ defineModule(sim, list(
   timeunit = "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "LandR_reforestation.Rmd"),
-  reqdPkgs = list("raster", "PredictiveEcology/LandR@development", "magrittr"),
+  reqdPkgs = list("raster", "PredictiveEcology/LandR@development (>= 1.0.7.9009)", "magrittr"),
   parameters = rbind(
     #defineParameter("paramName", "paramClass", value, min, max, "parameter description"),
     defineParameter(".plotInitialTime", "numeric", NA, NA, NA,
@@ -31,6 +31,7 @@ defineModule(sim, list(
                     intended for data-type modules, where stochasticity and time are not relevant"),
     defineParameter("cohortDefinitionCols", "character", c("pixelGroup", "age", "speciesCode"), NA, NA,
                     desc = "columns in cohortData that determine unique cohorts"),
+    defineParameter("initialB", "numeric", 10, NA, NA, "the initial biomass of a new age-1 cohort"),
     defineParameter("reforestInitialTime", "numeric", start(sim), NA, NA, "Time of first reforest. Set to NA if no
                     reforestation is desired. Harvest will still occur and map reclassified, with natural regen"),
     defineParameter("reforestInterval", "numeric", 1, NA, NA, "Time between reforest events"),
@@ -39,7 +40,7 @@ defineModule(sim, list(
     defineParameter("successionTimestep", "numeric", 10, NA, NA,
                     desc = "succession time step used by biomass succession module"),
     defineParameter("trackPlanting", "logical", FALSE, NA, NA,
-                    desc = "add 'harvest' column to cohortData that tracks planted cohorts")
+                    desc = "add 'planted' column to cohortData that tracks planted cohorts")
   ),
   inputObjects = bind_rows(
     #expectsInput("objectName", "objectClass", "input object description", sourceURL, ...),
@@ -177,6 +178,7 @@ plantNewCohorts <- function(sim) {
                                        cohortData = sim$cohortData,
                                        pixelGroupMap = sim$pixelGroupMap,
                                        currentTime = round(time(sim)),
+                                       initialB = P(sim)$initialB,
                                        speciesEcoregion = sim$speciesEcoregion,
                                        cohortDefinitionCols = P(sim)$cohortDefinitionCols,
                                        treedHarvestPixelTable = thpt,
