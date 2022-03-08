@@ -129,6 +129,14 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
 ### template initialization
 Init <- function(sim) {
 
+  #this is necessary to passs asertions if planted is in `cohortDefintiionCol`
+  if (P(sim)$trackPlanting) {
+    if (is.null(sim$cohortData$planted)) {
+      #assume nothing is planted at start(sim)
+      sim$cohortData[, planted := FALSE]
+    }
+  }
+
   #provenanceTable must be created from speciesEcoregion if not supplied
   #however this table is not always available during .inputObjects
   if (is.null(sim$provenanceTable)) {
@@ -149,7 +157,7 @@ Save <- function(sim) {
 plantNewCohorts <- function(sim) {
 
   cohortData <- copy(sim$cohortData)
-  cols <- c("pixelGroup", "speciesCode", "ecoregionGroup", "age", "B")
+  cols <- unique(c("pixelGroup", "B", P(sim)$cohortDefinitionCols))
   cols <- cols[cols %in% colnames(cohortData)]
 
   cohortData <- cohortData[, ..cols]
