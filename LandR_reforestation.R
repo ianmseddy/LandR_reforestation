@@ -134,6 +134,8 @@ Init <- function(sim) {
     if (is.null(sim$cohortData$planted)) {
       #assume nothing is planted at start(sim)
       sim$cohortData[, planted := FALSE]
+    } else {
+      sim$cohortData[is.na(planted), planted := FALSE]
     }
   }
 
@@ -157,7 +159,7 @@ Save <- function(sim) {
 plantNewCohorts <- function(sim) {
 
   cohortData <- copy(sim$cohortData)
-  cols <- unique(c("pixelGroup", "B", P(sim)$cohortDefinitionCols))
+  cols <- unique(c("pixelGroup", "B", "ecoregionGroup", P(sim)$cohortDefinitionCols))
   cols <- cols[cols %in% colnames(cohortData)]
 
   cohortData <- cohortData[, ..cols]
@@ -197,6 +199,10 @@ plantNewCohorts <- function(sim) {
   sim$cohortData <- outs$cohortData
   sim$pixelGroupMap <- outs$pixelGroupMap
   sim$pixelGroupMap[] <- as.integer(sim$pixelGroupMap[])
+
+  if (P(sim)$trackPlanting) {
+    sim$cohortData[is.na(planted), planted := FALSE]
+  }
 
   return(invisible(sim))
 }
