@@ -181,6 +181,12 @@ plantNewCohorts <- function(sim) {
 
   thpt <- unique(harvestPixelCohortData[, .(pixelGroup, pixelIndex)])
 
+  LandR::assertCohortData(sim$cohortData, sim$pixelGroupMap,
+                          cohortDefinitionCols = P(sim)$cohortDefinitionCols)
+
+  if (P(sim)$trackPlanting) {
+    sim$cohortData[is.na(planted), planted := FALSE]
+  }
 
   #Remove biomass from cohortData
   #treeHarvestPixelTable used to 0 pixelGroupMap
@@ -199,6 +205,8 @@ plantNewCohorts <- function(sim) {
   sim$cohortData <- outs$cohortData
   sim$pixelGroupMap <- outs$pixelGroupMap
   sim$pixelGroupMap[] <- as.integer(sim$pixelGroupMap[])
+  LandR::assertCohortData(sim$cohortData, sim$pixelGroupMap,
+                          cohortDefinitionCols = P(sim)$cohortDefinitionCols)
 
   if (P(sim)$trackPlanting) {
     sim$cohortData[is.na(planted), planted := FALSE]
