@@ -129,13 +129,10 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
 ### template initialization
 Init <- function(sim) {
 
-  #this is necessary to passs asertions if planted is in `cohortDefintiionCol`
-  if (P(sim)$trackPlanting) {
-    if (is.null(sim$cohortData$planted)) {
-      #assume nothing is planted at start(sim)
-      sim$cohortData[, planted := FALSE]
-    } else {
-      sim$cohortData[is.na(planted), planted := FALSE]
+  if (is.null(sim$cohortData$planted)){
+    if (P(sim)$trackPlanting) {
+      sim$cohortData$planted <- NA #this circumvents assertion fails due to non-existing columns
+      #it is intended to be a temporary solution until the assertion is fixed to check existing columns only
     }
   }
 
@@ -184,10 +181,6 @@ plantNewCohorts <- function(sim) {
   LandR::assertCohortData(sim$cohortData, sim$pixelGroupMap,
                           cohortDefinitionCols = P(sim)$cohortDefinitionCols)
 
-  if (P(sim)$trackPlanting) {
-    sim$cohortData[is.na(planted), planted := FALSE]
-  }
-
   #Remove biomass from cohortData
   #treeHarvestPixelTable used to 0 pixelGroupMap
   outs <- updateCohortDataPostHarvest (newPixelCohortData = harvestPixelCohortData,
@@ -207,10 +200,6 @@ plantNewCohorts <- function(sim) {
   sim$pixelGroupMap[] <- as.integer(sim$pixelGroupMap[])
   LandR::assertCohortData(sim$cohortData, sim$pixelGroupMap,
                           cohortDefinitionCols = P(sim)$cohortDefinitionCols)
-
-  if (P(sim)$trackPlanting) {
-    sim$cohortData[is.na(planted), planted := FALSE]
-  }
 
   return(invisible(sim))
 }
