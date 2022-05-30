@@ -64,7 +64,11 @@ defineModule(sim, list(
                   desc = paste("A table with three columns: ecoregionGroup, speciesCode, and Provenance.",
                                "It is used to determine the species and provenance to plant in each ecoregion.",
                                "If not supplied, it will be created from speciesEcoregion, using every",
-                               "available species that occurs in each ecoregion."))
+                               "available species that occurs in each ecoregion.")),
+    createsOutput(objectName = "plantedCohorts", objectClass = "data.table",
+                  desc = paste("For outputting planted cohorts without retaining the whole cohortData.",
+                               "Includes unplanted cohorts in PixelGroups containing planted cohorts (ie ingress).",
+                               "The object serves to provide flexibility when cohorts must be tracked annnually."))
   )
 ))
 
@@ -113,6 +117,11 @@ doEvent.LandR_reforestation = function(sim, eventTime, eventType) {
       if (!LandR::scheduleDisturbance(sim$rstCurrentHarvest, time(sim))) {
         sim <- plantNewCohorts(sim)
       }
+
+      plantedCohorts <- copy(sim$cohortData)
+      plantedCohorts[, includesPlanted := any(planted), .(pixelGroup)]
+      plantedCohorts <- plantedCohorts[includesPlanted == TRUE,]
+      sim$plantedCohorts <- plantedCohorts[, includesPlanted := NULL]
 
       sim <- scheduleEvent(sim, time(sim) + P(sim)$reforestInterval, "LandR_reforestation", "reforest", eventPriority = 7)
 
